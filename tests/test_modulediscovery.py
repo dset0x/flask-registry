@@ -9,10 +9,16 @@
 
 from __future__ import absolute_import
 
-from .helpers import FlaskTestCase
+import os
+import shutil
+import sys
+import tempfile
+
 from flask.ext.registry import Registry, ModuleDiscoveryRegistry, \
     ImportPathRegistry, RegistryProxy, RegistryError, \
     ModuleAutoDiscoveryRegistry, ModuleRegistry
+
+from .helpers import FlaskTestCase
 
 
 class TestModuleDiscoveryRegistry(FlaskTestCase):
@@ -92,6 +98,47 @@ class TestModuleDiscoveryRegistry(FlaskTestCase):
             self.assertRaises(ImportError,
                               self.app.extensions['registry']['myns'].discover)
             assert len(self.app.extensions['registry']['myns']) == 0
+
+    def test_importing_package_that_indirectly_triggers_importerror_fails(self):
+        # Nose flips if it cannot import a package and here we deliberately
+        # want to test against a broken package. Therefore we use a temprary
+        # directory elsewhere.
+
+        # Append to sys
+        tmp_path = tempfile.mkdtemp()
+        sys.path.insert(0, tmp_path)
+
+        # Create 'tmp_root', equivalent of 'tests'
+        tmp_root = os.path.join(tmp_path, 'tmp_root')
+        os.mkdir(tmp_root)
+        with open(os.path.join(tmp_root, '__init__.py'), 'w') as init:
+            init.write('')
+
+        # Create the broken package.
+        broken_pkg = os.path.join(tmp_root, 'broken_pkg')
+        os.mkdir(broken_pkg)
+        with open(os.path.join(broken_pkg, '__init__.py'), 'w') as init:
+            init.write('from .broken_module import os')
+        with open(os.path.join(broken_pkg, 'broken_module.py'), 'w') as bm:
+            bm.write('import os;import bla_bla_bla_bla')
+
+        # Run the test
+        Registry(app=self.app)
+
+        self.app.extensions['registry'].update(
+            pathns=ImportPathRegistry(initial=['tmp_root']),
+            myns=ModuleDiscoveryRegistry('broken_pkg',
+                                         registry_namespace='pathns'))
+
+        with self.app.app_context():
+            self.assertRaises(ImportError,
+                              self.app.extensions['registry']['myns'].discover)
+            assert len(self.app.extensions['registry']['myns']) == 0
+
+        # Clean up
+        sys.path.pop(0)
+        shutil.rmtree(tmp_path)
+
 
     def test_syntaxerror_module(self):
         Registry(app=self.app)

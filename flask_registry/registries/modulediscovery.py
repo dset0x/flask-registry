@@ -195,21 +195,46 @@ class ModuleDiscoveryRegistry(ModuleRegistry):
         """
         Handle properly an import error.
 
-        If a module does not exists, it's not an error, however an
+        If a module does not exist, it's not an error, however an
         :py:exc:`ImportError` generated from importing an existing module is an
         error.
         """
         try:
-            for found_module_name in find_modules(pkg):
-                if found_module_name == import_str:
-                    reraise(
-                        ImportError,
-                        ImportError(*exception.args),
-                        sys.exc_info()[2]
-                    )
+            list(find_modules(pkg))
         except ValueError:
-            # pkg doesn't exist or is not a package
-            pass
+            # pkg doesn't exist or is not a package. we're cool with that.
+            return
+
+        exc_info = sys.exc_info()
+        try:
+            # Potential issue if this resolves.
+            message = (
+                exception.  # <ImportStringError('tests.broken_module',
+                            # ImportError(AttributeError("'module' object has no attribute 'broken_module'",),))>
+
+                exception.  # ImportError(AttributeError("'module' object has no attribute 'broken_module'",),)
+
+                message.    #  AttributeError("'module' object has no attribute 'broken_module'",)
+
+                message     # "'module' object has no attribute 'broken_module'"
+            )
+        except AttributeError:
+            # No nested exception. There is an actual import issue.
+            should_reraise = True
+        else:
+            if message != "'module' object has no attribute '{0}'".format(self.module_name) or \
+                    exception.import_name == import_str:  # direct attempt at importing a missing module
+                should_reraise = False
+            else:
+                # ImportError raised on `self.module_name` even though
+                # `find_modules` says it's there.
+                should_reraise = True
+        if should_reraise:
+            reraise(
+                ImportError,
+                ImportError(*exception.args),
+                exc_info[2]
+            )
 
     def _handle_syntaxerror(self, exception, pkg, import_str):
         """

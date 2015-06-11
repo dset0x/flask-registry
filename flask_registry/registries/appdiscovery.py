@@ -112,11 +112,13 @@ Each ``views`` module should define either a single blueprint in the variable
     test2
 
 """
-
 from __future__ import absolute_import
 
-from werkzeug.utils import import_string
+import sys
+
 from flask import Blueprint, Config
+from six import reraise
+from werkzeug.utils import import_string, find_modules
 
 from .core import ListRegistry, ImportPathRegistry
 from .modulediscovery import ModuleDiscoveryRegistry, \
