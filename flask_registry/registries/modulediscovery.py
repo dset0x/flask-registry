@@ -219,8 +219,16 @@ class ModuleDiscoveryRegistry(ModuleRegistry):
                 message     # "'module' object has no attribute 'broken_module'"
             )
         except AttributeError:
-            # No nested exception. There is an actual import issue.
-            should_reraise = True
+            message = (
+                exception.
+                exception.
+                message)
+            if '.' in self.module_name:
+                if message == 'No module named {0}'.format(self.module_name.split('.')[0]):
+                    should_reraise = False
+            else:
+                # No nested exception. There is an actual import issue.
+                should_reraise = True
         else:
             if message != "'module' object has no attribute '{0}'".format(self.module_name) or \
                     exception.import_name == import_str:  # direct attempt at importing a missing module
